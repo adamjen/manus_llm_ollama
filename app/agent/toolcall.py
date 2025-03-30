@@ -34,66 +34,100 @@ class ToolCallAgent(ReActAgent):
 
     async def think(self) -> bool:
         """Process current state and decide next actions using tools"""
-        if self.next_step_prompt:
-            user_msg = Message.user_message(self.next_step_prompt)
-            self.messages += [user_msg]
-
-        # Get response with tool options
-        response = await self.llm.ask_tool(
-            messages=self.messages,
-            system_msgs=[Message.system_message(self.system_prompt)]
-            if self.system_prompt
-            else None,
-            tools=self.available_tools.to_params(),
-            tool_choice=self.tool_choices,
-        )
-        self.tool_calls = response.tool_calls
-
-        # Log response info
-        logger.info(f"✨ {self.name}'s thoughts: {response.content}")
-        logger.info(
-            f"🛠️ {self.name} selected {len(response.tool_calls) if response.tool_calls else 0} tools to use"
-        )
-        if response.tool_calls:
-            logger.info(
-                f"🧰 Tools being prepared: {[call.function.name for call in response.tool_calls]}"
-            )
-
         try:
-            # Handle different tool_choices modes
+            # Add next step prompt if exists
+            if self.next_step_prompt:
+                user_msg = Message.user_message(self.next_step_prompt)
+                self.messages += [user_msg]
+
+            # Get response with tool options - with enhanced error handling
+            try:
+                response = await self.llm.ask_tool(
+                    messages=self.messages,
+                    system_msgs=[Message.system_message(self.system_prompt)]
+                    if self.system_prompt
+                    else None,
+                    tools=self.available_tools.to_params(),
+                    tool_choice=self.tool_choices,
+                )
+            except Exception as e:
+                logger.error(f"🚨 LLM communication error: {str(e)}")
+                self.memory.add_message(
+                    Message.assistant_message("I encountered an error processing your request")
+                )
+                return False
+
+            # Safely handle tool calls extraction
+            self.tool_calls = getattr(response, 'tool_calls', None) or []
+            
+            # Enhanced logging with null checks
+            logger.info(f"✨ {self.name}'s thoughts: {getattr(response, 'content', 'No content')}")
+            logger.info(
+                f"🛠️ {self.name} selected {len(self.tool_calls)} tools to use"
+            )
+            
+            if self.tool_calls:
+                tool_names = []
+                for call in self.tool_calls:
+                    try:
+                        tool_names.append(call.function.name)
+                    except AttributeError:
+                        tool_names.append("unnamed_tool")
+                logger.info(f"🧰 Tools being prepared: {tool_names}")
+
+            # Handle different tool_choice modes
             if self.tool_choices == "none":
-                if response.tool_calls:
+                if self.tool_calls:
                     logger.warning(
                         f"🤔 Hmm, {self.name} tried to use tools when they weren't available!"
                     )
-                if response.content:
-                    self.memory.add_message(Message.assistant_message(response.content))
+                if getattr(response, 'content', None):
+                    self.memory.add_message(
+                        Message.assistant_message(response.content)
+                    )
                     return True
                 return False
 
-            # Create and add assistant message
-            assistant_msg = (
-                Message.from_tool_calls(
-                    content=response.content, tool_calls=self.tool_calls
+            # Create and add assistant message with null checks
+            try:
+                assistant_msg = (
+                    Message.from_tool_calls(
+                        content=getattr(response, 'content', ''),
+                        tool_calls=self.tool_calls
+                    )
+                    if self.tool_calls
+                    else Message.assistant_message(
+                        getattr(response, 'content', 'No response generated')
+                    )
                 )
-                if self.tool_calls
-                else Message.assistant_message(response.content)
-            )
-            self.memory.add_message(assistant_msg)
+                self.memory.add_message(assistant_msg)
+            except Exception as e:
+                logger.error(f"📝 Message creation failed: {str(e)}")
+                self.memory.add_message(
+                    Message.assistant_message("I had trouble formulating my response")
+                )
+                return False
 
+            # Decision logic
             if self.tool_choices == "required" and not self.tool_calls:
+                logger.warning("🔧 Tools were required but none were provided")
                 return True  # Will be handled in act()
 
-            # For 'auto' mode, continue with content if no commands but content exists
-            if self.tool_choices == "auto" and not self.tool_calls:
-                return bool(response.content)
+            if self.tool_choices == "auto":
+                has_content = bool(getattr(response, 'content', None))
+                if not self.tool_calls and has_content:
+                    return True
+                elif not self.tool_calls and not has_content:
+                    logger.warning("🤷 No tools or content generated in auto mode")
+                    return False
 
             return bool(self.tool_calls)
+
         except Exception as e:
-            logger.error(f"🚨 Oops! The {self.name}'s thinking process hit a snag: {e}")
+            logger.error(f"💥 Critical error in think(): {str(e)}", exc_info=True)
             self.memory.add_message(
                 Message.assistant_message(
-                    f"Error encountered while processing: {str(e)}"
+                    "I experienced a serious error while processing your request"
                 )
             )
             return False

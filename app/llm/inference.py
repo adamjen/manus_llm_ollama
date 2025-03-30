@@ -450,6 +450,21 @@ class LLM:
                 **kwargs,
             )
 
+            # Handle Ollama-specific response format
+            raw_message = response.choices[0].message
+            if not hasattr(raw_message, 'tool_calls'):
+                if 'function_call' in raw_message:
+                    # Transform Ollama-style function call to tool call format
+                    raw_message.tool_calls = [{
+                        'id': f"call_{uuid.uuid4()}",
+                        'function': {
+                            'name': raw_message.function_call.get('name', 'unknown_tool'),
+                            'arguments': raw_message.function_call.get('arguments', '{}')
+                        }
+                    }]
+            
+            return raw_message
+
             # Calculate and track cost
             self._calculate_and_track_cost(response)
 
