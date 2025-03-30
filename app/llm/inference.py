@@ -40,10 +40,15 @@ class LLM:
         if not hasattr(
             self, "initialized"
         ):  # Only initialize if not already initialized
+            # Get and validate configuration
             llm_config = llm_config or config.llm
             llm_config = llm_config.get(config_name, llm_config["default"])
 
-            self.model = getattr(llm_config, "model", "gpt-3.5-turbo")
+            # Handle model name with proper provider prefix
+            model_name = getattr(llm_config, "model", "gpt-3.5-turbo")
+            if not model_name.startswith(("ollama/", "azure/")):
+                model_name = f"ollama/{model_name}"
+            self.model = model_name
             self.max_tokens = getattr(llm_config, "max_tokens", 4096)
             self.temperature = getattr(llm_config, "temperature", 0.7)
             self.top_p = getattr(llm_config, "top_p", 0.9)
@@ -332,6 +337,7 @@ class LLM:
                 # Non-streaming request
                 response = await litellm.acompletion(
                     model=model_name,
+                    provider="ollama",
                     messages=messages,
                     max_tokens=self.max_tokens,
                     temperature=temperature or self.temperature,
@@ -349,6 +355,7 @@ class LLM:
             collected_messages = []
             async for chunk in await litellm.acompletion(
                 model=model_name,
+                provider="ollama",
                 messages=messages,
                 max_tokens=self.max_tokens,
                 temperature=temperature or self.temperature,
@@ -435,10 +442,10 @@ class LLM:
             response = await litellm.acompletion(
                 model=model_name,
                 messages=messages,
-                temperature=temperature or self.temperature,
                 max_tokens=self.max_tokens,
                 tools=tools,
                 tool_choice=tool_choice,
+                custom_llm_provider="ollama",
                 timeout=timeout,
                 **kwargs,
             )

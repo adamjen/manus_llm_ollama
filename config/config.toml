@@ -1,0 +1,13 @@
+# Global LLM configuration for Ollama
+[llm]
+model = "qwen2.5:14b"  # Or your desired Ollama model
+base_url = "http://localhost:11434"  # Default Ollama API endpoint
+api_key = "ollama" #Must be set, but value does not matter
+max_tokens = 4096
+temperature = 0.7
+
+# Optional configuration for specific LLM models (if needed, adjust model name accordingly)
+[llm.vision]
+model = "llama3.2-vision" # Or your desired Ollama vision model (if applicable)
+base_url = "http://localhost:11434"  # Default Ollama API endpoint
+api_key = "ollama" #Must be set, but value does not matter
