@@ -20,6 +20,11 @@ from app.schema import Message
 class LLM:
     _instances: Dict[str, "LLM"] = {}
 
+
+
+
+
+
     def __new__(
         cls, config_name: str = "default", llm_config: Optional[LLMSettings] = None
     ):
@@ -49,17 +54,7 @@ class LLM:
                     api_version=self.api_version,
                 )
             else:
-                self.client = AsyncOpenAI(
-                    base_url=self.base_url,
-                    api_key=self.api_key,
-                    # Add custom headers if needed
-                    default_headers={
-                        "Content-Type": "application/json",
-                        "Accept": "application/json"
-                    }
-                )    
-                
-
+                self.client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
 
     @staticmethod
     def format_messages(messages: List[Union[dict, Message]]) -> List[dict]:

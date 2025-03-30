@@ -36,7 +36,7 @@ class Message(BaseModel):
     tool_call_id: Optional[str] = Field(default=None)
 
     def __add__(self, other) -> List["Message"]:
-        """支持 Message + list 或 Message + Message 的操作"""
+        """Supports operations of Message + list or Message + Message"""
         if isinstance(other, list):
             return [self] + other
         elif isinstance(other, Message):
@@ -47,7 +47,7 @@ class Message(BaseModel):
             )
 
     def __radd__(self, other) -> List["Message"]:
-        """支持 list + Message 的操作"""
+        """Supports operations of list + Message"""
         if isinstance(other, list):
             return other + [self]
         else:

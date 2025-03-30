@@ -9,7 +9,8 @@ from app.tool.tool_collection import ToolCollection
 
 __all__ = [
     "BaseTool",
-    "Bash",
+    "Powershell",
+#    "Bash",
     "Terminate",
     "StrReplaceEditor",
     "ToolCollection",
